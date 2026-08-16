@@ -1,7 +1,8 @@
 # ROADMAP
 
-`fbrl-backend`를 Azure에 배포하기까지의 인프라 준비 로드맵입니다. Azure 계정이 아직 없는
-계획 단계이므로, 순서와 조건은 상황에 따라 바뀔 수 있습니다.
+`fbrl-backend`를 Azure에 올리기까지 인프라를 어떤 순서로 준비할지 정리한 문서다. 아직
+Azure 계정도 없는 계획 단계라, 여기 적힌 순서와 조건은 진행 상황에 따라 얼마든지 바뀔 수
+있다.
 
 ## 단계별 타임라인
 
@@ -15,7 +16,11 @@
 
 ## 참고
 
-- 인프라 요구사항 상세는 [DEPLOYMENT.md](./DEPLOYMENT.md) 참고.
-- AKS(관리형) 대신 VM + k3s로 갈 가능성이 높음 — 예산 제약 때문. 확정은 Azure 계정 개설 후 비용 비교를 거쳐 결정.
-- `k8s/rbac/`에 정의된 리소스(ServiceAccount/Role/RoleBinding)는 K8s Lease API 기반 리더 선출(`K8S_LEADER_ELECTION_*`)용이며, 실제 클러스터가 생기기 전까지는 적용 전 단계로 둔다.
-- Redis/Kafka 인증 경로, Kafka replication factor, ShedLock 네임스페이스 분리 등 코드 쪽 미해결 항목은 [DEPLOYMENT.md](./DEPLOYMENT.md)의 "인프라 팀과 협의 필요한 별도 항목" 참고 — Azure 서비스가 확정되는 2단계 이후에 함께 해결.
+- 인프라 요구사항은 [DEPLOYMENT.md](./DEPLOYMENT.md)에 정리되어 있다.
+- AKS 같은 관리형 서비스 대신 VM에 k3s를 직접 올리는 쪽으로 무게가 실려 있다. 예산이
+  빠듯해서다. 다만 확정은 아니고, Azure 계정을 만든 뒤 실제 비용을 비교해보고 결정한다.
+- `k8s/rbac/`에 있는 ServiceAccount, Role, RoleBinding은 K8s Lease API 기반 리더 선출
+  (`K8S_LEADER_ELECTION_*`)에 쓰인다. 클러스터가 생기기 전까지는 그대로 적용 전 단계로 둔다.
+- Redis/Kafka 인증 경로, Kafka replication factor, ShedLock 네임스페이스 분리처럼 코드
+  쪽에 남은 항목들은 [DEPLOYMENT.md](./DEPLOYMENT.md)의 "인프라 팀과 협의 필요한 별도 항목"에
+  정리해뒀다. Azure 서비스가 확정되는 2단계 이후에 같이 풀 계획이다.

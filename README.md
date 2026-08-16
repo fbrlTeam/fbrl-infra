@@ -1,9 +1,9 @@
 # fbrl-infra
 
-`fbrl-backend` 프로젝트의 인프라 설정을 관리하는 레포입니다. 실제 애플리케이션 코드는
-[farmer0010/fbrl-backend](https://github.com/farmer0010/fbrl-backend)에 있으며, 이 레포는
-로컬 개발 환경(docker-compose)과 Kubernetes RBAC 매니페스트, 배포 문서 등 인프라 관련 파일을
-모아서 관리합니다.
+`fbrl-backend` 프로젝트의 인프라를 관리하는 레포다. 애플리케이션 코드 자체는
+[farmer0010/fbrl-backend](https://github.com/farmer0010/fbrl-backend)에 있고, 여기서는
+로컬 개발 환경(docker-compose), Kubernetes RBAC 매니페스트, 배포 문서처럼 인프라와 직접
+관련된 파일들을 모아둔다.
 
 ## 로컬 개발 환경 실행
 
@@ -35,14 +35,14 @@ docker-compose down -v
 
 ## Kubernetes RBAC (`k8s/rbac/`)
 
-`k8s/rbac/`에는 ServiceAccount, Role, RoleBinding 매니페스트가 포함되어 있습니다.
-**아직 실제 K8s 클러스터가 준비되지 않아 적용 전 단계**이며, 클러스터 구성 후 적용 여부를
-검토해야 합니다.
+`k8s/rbac/`에는 ServiceAccount, Role, RoleBinding 매니페스트가 들어 있다. 다만 아직 실제
+K8s 클러스터가 없어서 **적용 전 단계**다. 클러스터가 만들어지면 그때 적용 여부를 다시
+검토한다.
 
 ## Debezium
 
-`debezium/outbox-connector.json`은 Outbox 패턴 CDC 커넥터 설정 파일입니다. 이 레포에는
-파일만 보관하며, 실제 Kafka Connect에 등록하는 작업은 별도로 진행합니다.
+`debezium/outbox-connector.json`은 Outbox 패턴 CDC 커넥터 설정 파일이다. 지금은 파일만
+보관하는 단계이고, 실제 Kafka Connect에 등록하는 작업은 다음으로 미뤄뒀다.
 
 ## 참고 문서
 
