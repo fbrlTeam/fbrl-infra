@@ -46,7 +46,8 @@ docker-compose down -v
 
 ## 참고 문서
 
-- [DEPLOYMENT.md](./DEPLOYMENT.md) — 배포 관련 문서 (fbrl-backend 레포에서 동기화)
+- [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) — 배포 관련 문서 (fbrl-backend 레포에서 동기화)
+- [docs/ROADMAP.md](./docs/ROADMAP.md) — 인프라 로드맵 (작성 예정)
 
 ## 다음 할 일 (TODO)
 
