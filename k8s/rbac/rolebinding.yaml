@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: eod-settlement-leader-election
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: eod-settlement-leader-election
+    namespace: default
+roleRef:
+  kind: Role
+  name: eod-settlement-leader-election
+  apiGroup: rbac.authorization.k8s.io
