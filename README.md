@@ -69,11 +69,13 @@ curl -X POST -H "Content-Type: application/json" \
   http://localhost:8083/connectors
 ```
 
-- 5개 서비스 상태는 `docker-compose ps`로 확인한다.
+- 6개 서비스 상태는 `docker-compose ps`로 확인한다.
 - 분산 트레이스는 Jaeger UI(`http://localhost:16686`)에서 볼 수 있다.
 - 커넥터 상태는 `curl http://localhost:8083/connectors/fbrl-outbox-connector/status`로
   확인한다. `outbox_event` 테이블이 없는 로컬 환경에서는 태스크가 FAILED로 뜨는 게
   정상이며, `fbrl-backend`를 별도로 띄워 마이그레이션을 돌리면 해결된다.
+- 데모 랩용 DB는 운영 DB와 완전히 분리되어 있다 (포트 5433). 팀원과 회의 후 리셋
+  스케줄러가 실수로 운영 DB를 건드리지 않도록 하기 위함.
 - 끌 때는 `docker-compose down`, 볼륨까지 지우려면 `docker-compose down -v`.
 
 ## 담당자
