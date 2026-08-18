@@ -65,17 +65,25 @@ graph TB
 ```bash
 docker-compose up -d
 curl -X POST -H "Content-Type: application/json" \
-  --data @debezium/outbox-connector.json \
+  --data @debezium/outbox-connector-main.json \
+  http://localhost:8083/connectors
+curl -X POST -H "Content-Type: application/json" \
+  --data @debezium/outbox-connector-demo.json \
   http://localhost:8083/connectors
 ```
 
 - 6개 서비스 상태는 `docker-compose ps`로 확인한다.
 - 분산 트레이스는 Jaeger UI(`http://localhost:16686`)에서 볼 수 있다.
-- 커넥터 상태는 `curl http://localhost:8083/connectors/fbrl-outbox-connector/status`로
-  확인한다. `outbox_event` 테이블이 없는 로컬 환경에서는 태스크가 FAILED로 뜨는 게
-  정상이며, `fbrl-backend`를 별도로 띄워 마이그레이션을 돌리면 해결된다.
+- 커넥터 상태는 `curl http://localhost:8083/connectors/fbrl-outbox-connector/status`
+  (메인), `curl http://localhost:8083/connectors/fbrl-outbox-connector-demo/status`
+  (데모)로 각각 확인한다. `outbox_event` 테이블이 없는 로컬 환경에서는 두 커넥터 다
+  태스크가 FAILED로 뜨는 게 정상이며, `fbrl-backend`를 별도로 띄워 마이그레이션을
+  돌리면 해결된다.
 - 데모 랩용 DB는 운영 DB와 완전히 분리되어 있다 (포트 5433). 팀원과 회의 후 리셋
-  스케줄러가 실수로 운영 DB를 건드리지 않도록 하기 위함.
+  스케줄러가 실수로 운영 DB를 건드리지 않도록 하기 위함. Debezium 커넥터도 메인용
+  (`fbrl-outbox-connector`, 토픽 `transfer-events`)과 데모용
+  (`fbrl-outbox-connector-demo`, 토픽 `transfer-events-demo`)으로 분리되어 있어
+  두 DB의 변경 이벤트가 같은 토픽에 섞이지 않는다.
 - 끌 때는 `docker-compose down`, 볼륨까지 지우려면 `docker-compose down -v`.
 
 ## 담당자
