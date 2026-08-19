@@ -67,3 +67,37 @@ filtered publication을 만들 수 없다는 내용이다. `docker exec fbrl-pos
   직접 들어가 orphaned 실행을 `FAILED`로 수동 UPDATE해야만 재개 가능** — 그 후 재시작하니
   나머지 1000건만 이어서 처리하고(처음부터 다시 안 돎) 9초 만에 완료. 최종적으로
   `eod_snapshots` 5000건, 계좌당 중복 0건, 누락 0건으로 확인.
+
+### Kafka + Kafka Connect를 k3s로 이전
+
+Postgres/Redis는 Azure 관리형 서비스로 옮겼으니, k3s(`fbrl-k3s-vm`)에는 Kafka와
+Kafka Connect만 올렸다. 매니페스트는 `terraform/k3s-manifests/`(`kafka.yaml`,
+`kafka-connect.yaml`, `postgres-secret.template.yaml` — 마지막은 템플릿만, 실제 값은
+없음)에 정리했다. `docker-compose.yml`의 설정값은 그대로 옮기고 문법만 K8s로 번역했다.
+
+**Secret 처리**: Kafka Connect는 커넥터 설정을 컨테이너 env가 아니라 REST API로 받는
+구조라, 매니페스트에는 Secret을 참조하는 부분이 없다. 대신 `kubectl create secret generic
+kafka-connect-postgres-secret --from-file=postgres-password=/dev/stdin`로 VM에서 직접
+생성했고, 비밀번호 값은 로컬 `terraform.tfvars`에서 꺼내 SSH의 stdin으로만 흘려보내서
+어떤 커맨드라인에도 평문으로 찍히지 않게 했다(`--from-literal`을 안 쓴 이유이기도 함 —
+그건 `ps aux`와 셸 히스토리에 그대로 남는다). 커넥터 등록 시에도 REST 요청 본문은
+서버 쪽에서만 치환하고, 응답은 비밀번호를 `[REDACTED]`로 마스킹한 뒤에만 확인했다.
+
+**Pod 상태**: `kafka`, `kafka-connect` 둘 다 `1/1 Running`으로 정상 기동 확인.
+
+**Debezium 커넥터 재등록 시도 — 예상과 다르게 실패**: 로컬 테스트 때는 REST 등록 자체는
+`201 Created`로 성공하고 태스크만 나중에 `FAILED`였다(테이블만 없는 상황). 이번엔 그보다
+한 단계 이른 지점에서 막혔다 — **`fbrl_db`/`fbrl_demo_db` 데이터베이스 자체가 Azure
+Postgres 서버에 없어서**, 커넥터 등록 요청 자체가 `400 Bad Request`로 거부됐다(설정
+검증 단계에서 연결을 미리 시도하다 실패):
+
+```
+main:  {"error_code":400,"message":"...FATAL: database \"fbrl_db\" does not exist..."}
+demo:  {"error_code":400,"message":"...FATAL: database \"fbrl_demo_db\" does not exist..."}
+```
+
+Terraform은 Postgres *서버*(인스턴스)만 만들었고, `fbrl_db`/`fbrl_demo_db` 데이터베이스와
+`outbox_event` 테이블은 `fbrl-backend` 앱이 마이그레이션을 돌려야 생긴다 — 이것도 로컬
+때와 같은 계열의 "당연한 실패"이지만, 실패 지점이 "테이블 없음"에서 "데이터베이스 자체가
+없음"으로 한 단계 더 앞으로 당겨진 것뿐이다. `fbrl-backend`를 이 VM 또는 다른 곳에서
+Azure Postgres를 바라보게 띄워 마이그레이션을 돌리면 해결될 것으로 예상.
