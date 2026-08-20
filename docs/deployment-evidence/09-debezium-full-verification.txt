@@ -1,0 +1,52 @@
+=== Debezium 커넥터 완전 검증 (2026-08-20) ===
+
+배경: 어제(scenario, k3s 이전 단계)는 fbrl_db/fbrl_demo_db 데이터베이스 자체가 없어서
+REST 등록(400)부터 막혔었다. 오늘 fbrl-backend를 k3s에 배포하면서 두 데이터베이스와
+전체 테이블(outbox_event 포함)이 생겼으므로, 같은 두 커넥터를 다시 등록해서 태스크까지
+RUNNING으로 완전히 성공하는지 검증했다.
+
+## 1차 시도 — 등록은 성공, 태스크는 또 실패 (새로운 원인)
+
+$ curl -X POST ... http://kafka-connect:8083/connectors  (main, demo 각각)
+HTTP_STATUS:201 (둘 다)
+
+$ curl http://kafka-connect:8083/connectors/fbrl-outbox-connector/status
+{"connector":{"state":"RUNNING"},"tasks":[{"id":0,"state":"FAILED","trace":
+  "io.debezium.DebeziumException: Creation of replication slot failed
+   Caused by: org.postgresql.util.PSQLException: FATAL: permission denied to start WAL sender
+     Detail: Only roles with the REPLICATION attribute may start a WAL sender process."}]}
+
+(demo도 동일한 원인으로 FAILED)
+
+원인: 로컬 docker-compose의 postgres 계정은 컨테이너 초기화 시 슈퍼유저로 생성되어
+REPLICATION 권한이 자동으로 있었지만, Azure Postgres Flexible Server의 관리자 계정
+(fbrlpgadmin)은 진짜 슈퍼유저가 아니라 제한된 관리자 역할(azure_pg_admin 멤버)이라
+REPLICATION 권한이 기본으로 없다.
+
+## 조치 — REPLICATION 권한 부여
+
+VM에서 psql로 운영/데모 양쪽에 각각 실행:
+  ALTER ROLE fbrlpgadmin WITH REPLICATION;
+→ 둘 다 "ALTER ROLE" 성공.
+
+부수적으로 wal_level도 재확인:
+  SHOW wal_level;  →  logical (운영/데모 양쪽 다 정상 적용되어 있었음, 문제 없었음)
+
+## 2차 시도 — 태스크 재시작 후 완전 성공
+
+$ curl -X POST http://kafka-connect:8083/connectors/fbrl-outbox-connector/tasks/0/restart
+204
+$ curl -X POST http://kafka-connect:8083/connectors/fbrl-outbox-connector-demo/tasks/0/restart
+204
+
+10회 폴링(5초 간격, 총 50초) 결과 — 전부 동일:
+  main: connector: RUNNING | task0: RUNNING
+  demo: connector: RUNNING | task0: RUNNING
+
+## 결론
+
+두 커넥터 모두 connector/task 상태가 RUNNING/RUNNING으로 완전히 안정화됨을 확인했다.
+CDC 파이프라인(Postgres WAL → Debezium → Kafka)이 운영/데모 양쪽 다 실제로 동작하는
+상태다. 실패 원인이 어제는 "DB 자체가 없음", 오늘 1차는 "REPLICATION 권한 없음"으로
+매번 한 단계씩 더 깊이 들어간 것이 흥미로운 점 — Azure managed Postgres는 로컬
+컨테이너와 달리 admin 계정 권한이 기본적으로 제한적이라는 걸 보여주는 사례.
