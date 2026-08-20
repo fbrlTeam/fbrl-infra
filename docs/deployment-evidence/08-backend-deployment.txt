@@ -1,0 +1,85 @@
+=== fbrl-backend k3s 배포 기록 (2026-08-20) ===
+
+## 1. 준비한 Secret (K8s, 값은 이 파일에 없음)
+
+- kafka-connect-postgres-secret (key: postgres-password) — 기존 것 재사용
+  (운영/데모 Postgres가 같은 관리자 계정을 공유). 최초 생성 시 bash here-string(<<<)이
+  끝에 개행문자를 자동으로 붙이는 버그로 인해 비밀번호 인증이 실패했고,
+  --from-file + 파일 리다이렉션(<)으로 재생성해서 해결함 (아래 3번 참고).
+- backend-redis-secret (key: redis-password) — Azure Managed Redis primary key
+- backend-demo-account-secret (key: username=demo, password=신규 생성)
+- acr-auth (기존 imagePullSecret 재사용)
+
+## 2. 매니페스트
+
+terraform/k3s-manifests/backend.yaml — Deployment(1 replica) + Service(ClusterIP, 8080)
+환경변수는 요청 목록 + 아래 필수 추가 항목:
+  - SPRING_DATA_REDIS_PORT=10000, SPRING_DATA_REDIS_PASSWORD(Secret), SPRING_DATA_REDIS_SSL_ENABLED=true
+    → Azure Managed Redis는 access key+TLS 필수(요청 목록에 없었지만 없으면 기동 자체가 안 됨)
+  - SPRING_JPA_HIBERNATE_DDL_AUTO=update, SPRING_SQL_INIT_MODE=always
+    → 빈 DB에 스키마를 최초 생성하기 위한 이번 배포 한정 조치 (docs/DEPLOYMENT.md는 프로덕션에서
+      validate 유지를 권장 — 스키마 갖춰진 뒤 되돌리는 걸 고려할 것)
+  - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:19092 (kafka.yaml의 PLAINTEXT 리스너, PLAINTEXT_HOST(9092)는
+    advertised address가 localhost라 다른 Pod에서 접근 불가)
+
+## 3. 배포 중 발생한 문제와 해결
+
+### 문제 A — Redis 인증 정보 누락 (요청 목록에 없었음)
+Azure Managed Redis는 기본적으로 access key 인증이 꺼져있고 Azure AD 인증만 허용됨.
+`az redisenterprise database list-keys` 시도 시:
+  ERROR: The ListKeys operation is not supported when access keys are disabled.
+→ terraform/main.tf의 azurerm_managed_redis default_database 블록에
+  access_keys_authentication_enabled = true 추가, targeted apply(0 to add, 1 to change)로 해결.
+
+### 문제 B — Postgres 비밀번호 인증 실패 (Secret 값 손상)
+1차 기동 시도:
+  Caused by: org.postgresql.util.PSQLException: FATAL: password authentication failed for user "fbrlpgadmin"
+
+원인: kafka-connect-postgres-secret을 최초 생성할 때 `<<< "$PGPASS"`(here-string)를 썼는데,
+here-string은 항상 끝에 개행(\n)을 붙인다. secretKeyRef로 주입된 env var는 그 개행까지
+그대로 포함되어 실제 비밀번호와 달라짐. (어제 Debezium 커넥터 등록 때는 `$(...)` 커맨드
+치환이 트레일링 개행을 자동으로 제거해줘서 우연히 문제가 안 드러났었음.)
+
+해결: 로컬에서 `printf '%s'`로 개행 없이 파일에 저장 → `<` 파일 리다이렉션으로 SSH 전송
+(개행 추가 없음, 바이트 수 44로 로컬/원격 일치 확인) → Secret 삭제 후
+`--from-file=postgres-password=<파일>`로 재생성.
+
+### 문제 C — 대상 데이터베이스 자체가 없음
+2차 기동 시도:
+  Caused by: org.postgresql.util.PSQLException: FATAL: database "fbrl_demo_db" does not exist
+
+원인: 로컬 docker-compose는 POSTGRES_DB 환경변수로 컨테이너가 데이터베이스를 자동 생성했지만,
+Azure Postgres Flexible Server는 서버(인스턴스)만 만들 뿐 데이터베이스는 자동 생성하지 않음.
+(어제 Debezium 커넥터 등록이 400으로 막혔던 것과 동일한 근본 원인.)
+
+해결: VM에 postgresql-client(psql) 설치 후, fbrl-postgres-main/fbrl-postgres-demo 양쪽에
+직접 접속해 CREATE DATABASE fbrl_db; / CREATE DATABASE fbrl_demo_db; 실행.
+
+## 4. 최종 Pod 상태
+
+$ sudo k3s kubectl get pods -l app=fbrl-backend
+NAME                           READY   STATUS    RESTARTS   AGE
+fbrl-backend-cc57fb9d5-bj7h8   1/1     Running   0          46s
+
+$ sudo k3s kubectl logs deployment/fbrl-backend | grep 'Started FbrlBackendApplication'
+2026-08-20T12:57:07.479Z  INFO 1 --- [fbrl-backend] [           main] [] com.fbrl.FbrlBackendApplication : Started FbrlBackendApplication in 29.504 seconds (process running for 30.88)
+
+## 5. 운영/데모 DB 테이블 확인 (psql \dt)
+
+=== fbrl_db (운영) — 16개 테이블 ===
+account_lock_anchors, accounts, admin_users, batch_job_execution, batch_job_execution_context,
+batch_job_execution_params, batch_job_instance, batch_step_execution, batch_step_execution_context,
+eod_snapshots, ledger_entries, outbox_chain_tail, outbox_event, reconciliation_discrepancies,
+transfer_approval_requests, transfer_sagas
+
+=== fbrl_demo_db (데모) — 13개 테이블 ===
+accounts, batch_job_execution, batch_job_execution_context, batch_job_execution_params,
+batch_job_instance, batch_step_execution, batch_step_execution_context, eod_snapshots,
+ledger_entries, outbox_chain_tail, outbox_event, reconciliation_discrepancies,
+transfer_approval_requests
+(admin_users/transfer_sagas/account_lock_anchors는 데모 엔티티 구조상 없는 게 정상 —
+ 인증은 운영 DB 공유, docs/DEPLOYMENT.md 참고)
+
+## 결론
+
+운영 DB 16개, 데모 DB 13개 테이블 모두 정상 생성 확인. Pod Running, 재시작 없이 안정.

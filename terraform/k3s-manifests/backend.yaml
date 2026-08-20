@@ -1,0 +1,129 @@
+# fbrl-backend를 k3s에 배포하는 Deployment + Service.
+# 운영 DB는 fbrl-postgres-main(Azure), 데모 DB는 fbrl-postgres-demo(Azure), Redis는
+# fbrl-redis(Azure Managed Redis), Kafka는 이 클러스터 안의 kafka Service(kafka:19092 —
+# PLAINTEXT_HOST가 아니라 PLAINTEXT 리스너를 써야 다른 Pod에서 접속 가능. kafka.yaml 참고).
+#
+# 민감정보(Postgres 비밀번호, Redis access key, 데모 계정)는 여기 없다 — 전부 K8s Secret
+# 참조(secretKeyRef)이고, 아래 Secret들은 이 매니페스트를 apply하기 전에 먼저 만들어져
+# 있어야 한다:
+#   - kafka-connect-postgres-secret (key: postgres-password) — 기존 것 재사용, 운영/데모
+#     Postgres가 같은 관리자 계정(fbrlpgadmin)을 공유하기 때문
+#   - backend-redis-secret (key: redis-password)
+#   - backend-demo-account-secret (key: username, password)
+#   - acr-auth (기존 imagePullSecret)
+#
+# SPRING_JPA_HIBERNATE_DDL_AUTO=update, SPRING_SQL_INIT_MODE=always는 요청 목록에는
+# 없었지만 반드시 필요해서 추가했다 — 기본값(validate/never)로는 완전히 빈 DB에서
+# 스키마가 하나도 안 생겨서 앱이 기동 시점에 바로 실패한다(docs/DEPLOYMENT.md 참고).
+# 이번 최초 배포 한정 조치이고, 스키마가 갖춰진 뒤에는 validate로 되돌리는 걸 권장한다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fbrl-backend
+  labels:
+    app: fbrl-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fbrl-backend
+  template:
+    metadata:
+      labels:
+        app: fbrl-backend
+    spec:
+      imagePullSecrets:
+        - name: acr-auth
+      containers:
+        - name: fbrl-backend
+          image: fbrlacr.azurecr.io/fbrl-backend:latest
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            # 최초 배포 부트스트랩용 — 스키마가 없는 빈 DB에 테이블을 생성하기 위함
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              value: "update"
+            - name: SPRING_SQL_INIT_MODE
+              value: "always"
+
+            # 운영 DB
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://fbrl-postgres-main.postgres.database.azure.com:5432/fbrl_db"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "fbrlpgadmin"
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kafka-connect-postgres-secret
+                  key: postgres-password
+
+            # Redis (Azure Managed Redis — access key + TLS 필수)
+            - name: SPRING_DATA_REDIS_HOST
+              value: "fbrl-redis.koreacentral.redis.azure.net"
+            - name: SPRING_DATA_REDIS_PORT
+              value: "10000"
+            - name: SPRING_DATA_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backend-redis-secret
+                  key: redis-password
+            - name: SPRING_DATA_REDIS_SSL_ENABLED
+              value: "true"
+
+            # Kafka (클러스터 내부 — kafka Service의 PLAINTEXT 리스너)
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:19092"
+
+            # 데모 DB
+            - name: DEMO_DATASOURCE_URL
+              value: "jdbc:postgresql://fbrl-postgres-demo.postgres.database.azure.com:5432/fbrl_demo_db"
+            - name: DEMO_DATASOURCE_USERNAME
+              value: "fbrlpgadmin"
+            - name: DEMO_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kafka-connect-postgres-secret
+                  key: postgres-password
+
+            # 데모 계정 (공개 노출이 의도된 설계 — docs/DEPLOYMENT.md 참고)
+            - name: DEMO_ACCOUNT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: backend-demo-account-secret
+                  key: username
+            - name: DEMO_ACCOUNT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backend-demo-account-secret
+                  key: password
+          readinessProbe:
+            httpGet:
+              path: /swagger-ui/index.html
+              port: 8080
+            initialDelaySeconds: 40
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /swagger-ui/index.html
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fbrl-backend
+  labels:
+    app: fbrl-backend
+spec:
+  selector:
+    app: fbrl-backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP

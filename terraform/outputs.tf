@@ -22,3 +22,8 @@ output "redis_hostname" {
   description = "Redis 캐시 호스트명 (Azure Managed Redis)"
   value       = azurerm_managed_redis.main.hostname
 }
+
+output "acr_login_server" {
+  description = "Azure Container Registry 로그인 서버 주소 (docker login/push 대상)"
+  value       = azurerm_container_registry.main.login_server
+}

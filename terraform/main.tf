@@ -236,5 +236,19 @@ resource "azurerm_managed_redis" "main" {
   sku_name                  = "Balanced_B0"
   high_availability_enabled = false # 비용 최소화 목적, dev 환경이라 이중화 불필요
 
-  default_database {}
+  # 기본값은 access key 인증이 꺼져있고 Azure AD 인증만 허용됨 — 앱(SPRING_DATA_REDIS_PASSWORD)이
+  # 쓰는 비밀번호 방식이 동작하려면 명시적으로 켜야 한다.
+  default_database {
+    access_keys_authentication_enabled = true
+  }
+}
+
+# Azure Container Registry — 백엔드 컨테이너 이미지를 정식으로 올려서 k3s가 pull해가게 하기 위함.
+# Basic(가장 저렴한 티어), admin 계정 활성화(학습 목적이라 서비스 프린시펄 대신 이 방식으로 충분).
+resource "azurerm_container_registry" "main" {
+  name                = "fbrlacr"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  sku                 = "Basic"
+  admin_enabled       = true
 }

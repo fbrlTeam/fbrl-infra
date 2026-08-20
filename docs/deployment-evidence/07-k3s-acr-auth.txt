@@ -1,0 +1,26 @@
+=== 6단계: k3s registry 인증 Secret 생성 (2026-08-20 21:40:09) ===
+명령: sudo k3s kubectl create secret docker-registry acr-auth
+  --docker-server=fbrlacr.azurecr.io --docker-username=fbrlacr --docker-password=<비밀번호는 파일/로그에 남기지 않음>
+결과: secret/acr-auth created
+
+=== 7단계: 인증 테스트 (임시 Pod) ===
+명령: sudo k3s kubectl run acr-auth-test --image=fbrlacr.azurecr.io/fbrl-backend:latest \
+        --image-pull-policy=Always --restart=Never \
+        --overrides='{"spec":{"imagePullSecrets":[{"name":"acr-auth"}]}}'
+
+폴링 결과:
+  poll 1: phase=Pending state=ContainerCreating
+  poll 2: phase=Running state=running (startedAt=2026-08-20T12:39:32Z)
+
+Pod 이벤트:
+  Pulling  : Pulling image "fbrlacr.azurecr.io/fbrl-backend:latest"
+  Pulled   : Successfully pulled image "fbrlacr.azurecr.io/fbrl-backend:latest" in 7.387s. Image size: 231191892 bytes.
+  Created  : Container created
+  Started  : Container started
+
+=== 결론 ===
+ImagePullBackOff/ErrImagePull 없이 정상적으로 이미지를 pull하고 컨테이너가 Running 상태로
+전환됐다 — acr-auth Secret을 통한 k3s <-> ACR 인증 연동이 정상 동작함을 확인.
+
+=== 정리 ===
+테스트 Pod(acr-auth-test) 삭제 완료: pod "acr-auth-test" deleted from default namespace

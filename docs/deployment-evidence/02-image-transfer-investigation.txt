@@ -1,0 +1,24 @@
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root        29G  7.4G   21G  27% /
+               total        used        free      shared  buff/cache   available
+Mem:           7.8Gi       3.3Gi       1.4Gi       6.3Mi       3.3Gi       4.4Gi
+Swap:             0B          0B          0B
+
+=== 이미지 배포 방법 비교 (조사 결과) ===
+
+이미지 크기: fbrl-backend:latest, content 231MB (docker images 기준)
+VM 디스크 여유: 21GB / 29GB (27% 사용) — 충분함
+
+옵션 1: Azure Container Registry(ACR)
+  - 새 Azure 리소스 생성 필요 (비용 발생, 사용자 확인 필요 대상)
+  - k3s(AKS 아님)라 'az aks attach-acr' 같은 네이티브 연동이 없음 —
+    imagePullSecret 또는 containerd registry 인증 설정을 수동으로 해야 함
+  - 여러 노드/CI 파이프라인이 있는 환경에 적합, 지금은 오버스펙
+
+옵션 2: 이미지 직접 전송 (docker save -> scp -> k3s ctr images import)
+  - 새 Azure 리소스 불필요, 추가 비용 없음
+  - k3s는 containerd 기반이라 'sudo k3s ctr images import'로
+    로컬 tar 이미지를 바로 containerd 이미지 스토어에 등록 가능
+  - Pod 매니페스트에서 imagePullPolicy: Never(또는 IfNotPresent)로 지정하면
+    레지스트리 조회 자체를 건너뜀
+  - 단일 노드 dev 클러스터인 지금 상황에 가장 간단

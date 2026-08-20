@@ -1,0 +1,33 @@
+The push refers to repository [fbrlacr.azurecr.io/fbrl-backend]
+78945630489f: Waiting
+33155d10cbc7: Waiting
+1e2a2f574cbc: Waiting
+4f9b826e5580: Waiting
+b3fb3c808fdc: Waiting
+0d0d926a12e5: Waiting
+e6f31ffc071e: Waiting
+bb5bb06f25c5: Waiting
+6059dc010b70: Waiting
+78945630489f: Waiting
+33155d10cbc7: Waiting
+1e2a2f574cbc: Waiting
+4f9b826e5580: Waiting
+b3fb3c808fdc: Waiting
+0d0d926a12e5: Waiting
+e6f31ffc071e: Waiting
+bb5bb06f25c5: Waiting
+6059dc010b70: Waiting
+78945630489f: Waiting
+e6f31ffc071e: Waiting
+bb5bb06f25c5: Waiting
+6059dc010b70: Waiting
+78945630489f: Pushed
+4f9b826e5580: Pushed
+b3fb3c808fdc: Pushed
+bb5bb06f25c5: Pushed
+6059dc010b70: Pushed
+33155d10cbc7: Pushed
+e6f31ffc071e: Pushed
+1e2a2f574cbc: Pushed
+0d0d926a12e5: Pushed
+latest: digest: sha256:a70ebd030728ae2795df4fc9608d6ad784eb7e013b18d7664ebc12541d45bc8d size: 856
