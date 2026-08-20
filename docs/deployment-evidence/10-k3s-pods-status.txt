@@ -1,0 +1,4 @@
+NAME                             READY   STATUS    RESTARTS        AGE   IP           NODE          NOMINATED NODE   READINESS GATES
+fbrl-backend-cc57fb9d5-bj7h8     1/1     Running   0               18m   10.42.0.28   fbrl-k3s-vm   <none>           <none>
+kafka-6cc4b4d555-9nc7h           1/1     Running   1 (6h20m ago)   27h   10.42.0.17   fbrl-k3s-vm   <none>           <none>
+kafka-connect-64c5c58996-5gbvq   1/1     Running   1 (25h ago)     27h   10.42.0.18   fbrl-k3s-vm   <none>           <none>
